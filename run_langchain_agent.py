@@ -1,6 +1,7 @@
-"""Exemplo simples de uso do LangChain com a tool de cidades."""
+"""Exemplo simples de uso do LangChain com as tools de cidades."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -8,7 +9,13 @@ from dotenv import load_dotenv
 from langchain.agents import AgentType, initialize_agent
 from langchain_openai import ChatOpenAI
 
+from city_profiles import load_cities
 from langchain_city_tool import listar_perfis_cidades
+from route_analysis_tool import (
+    RouteAnalysis,
+    analisar_rota_cidades,
+    build_route_analysis_chain,
+)
 
 
 def main() -> None:
@@ -30,8 +37,27 @@ def main() -> None:
         agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
         verbose=True,
     )
-    resposta = agent.run("Quais cidades estão disponíveis?")
+    resposta = agent.invoke("Quais cidades estão disponíveis?")
     print("\nResposta do agente:\n", resposta)
+
+    print("\nAnálises detalhadas das rotas a partir de Criciúma:\n")
+    origem = "Criciúma"
+    destinos = []
+    entradas = []
+    for profile in load_cities():
+        destino = f"{profile.city}, {profile.state}".strip().strip(",")
+        if not destino or profile.city.lower() == origem.lower():
+            continue
+
+        destinos.append(destino)
+        entradas.append({"origem": origem, "destino": destino})
+
+    analises: list[RouteAnalysis] = build_route_analysis_chain().map().invoke(entradas)
+
+    for destino, analise in zip(destinos, analises):
+        print(f"Rota: {origem} -> {destino}")
+        print(json.dumps(analise.dict(), ensure_ascii=False, indent=2))
+        print("-" * 40)
 
 
 if __name__ == "__main__":
